@@ -181,7 +181,6 @@ class SpacecraftSNN_3Conv(nn.Module):
         out_record = []
         
         for step_data in x:
-            # Passaggio Conv 1
             cur1 = self.conv1(step_data)
             spk1, mem1 = self.lif1(cur1, mem1)
             
@@ -189,19 +188,15 @@ class SpacecraftSNN_3Conv(nn.Module):
             cur2 = self.conv2(spk1)
             spk2, mem2 = self.lif2(cur2, mem2)
 
-            # --- PASSAGGIO CONV 3 ---
             cur3 = self.conv3(spk2)
             spk3, mem3_conv = self.lif3_conv(cur3, mem3_conv)
-            
-            # Pooling applicato all'uscita del 3° layer convoluzionale
+
             pooled = self.pool(spk3)
             flat = self.flatten(pooled)
-            
-            # Passaggio FC 1
+ 
             cur4 = self.dropout(self.fc1(flat))
             spk4, mem4_fc = self.lif4_fc(cur4, mem4_fc)
 
-            # Passaggio Output
             cur_out = self.fc2(spk4)
             _, mem_out = self.lif_out(cur_out, mem_out)
             

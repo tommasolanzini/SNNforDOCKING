@@ -38,7 +38,7 @@ def inject_radiation(state_dict, BER):
             
     return corrupted_dict
 
-# 2. Evaluation Engine
+# Evaluation Engine
 def evaluate_corrupted_model(model, dataloader, device, model_type="SNN"):
     model.eval()
     errors = []
@@ -50,8 +50,7 @@ def evaluate_corrupted_model(model, dataloader, device, model_type="SNN"):
                 pred, _ = model(data)
             else:
                 pred = model(data)
-            
-            # CRITICAL FIX: Cast to float64 to prevent intermediate overflow
+
             p = pred[0].cpu().numpy().astype(np.float64)
             t = true_pose[0].numpy().astype(np.float64)
             error = (p - t)**2
@@ -82,8 +81,7 @@ if __name__ == "__main__":
     
     snn_death_rates = []
     ann_death_rates = []
-    
-    # New arrays to track precision loss
+
     snn_mean_rmse = []
     ann_mean_rmse = []
 
@@ -118,14 +116,13 @@ if __name__ == "__main__":
             else:
                 ann_valid_rmse_scores.append(ann_rmse)
                 
-        # 1. Calculate Failure Rates
+        # Calculate Failure Rates
         snn_fail_pct = (snn_deaths / num_trials) * 100
         ann_fail_pct = (ann_deaths / num_trials) * 100
         snn_death_rates.append(snn_fail_pct)
         ann_death_rates.append(ann_fail_pct)
         
-        # 2. Calculate Precision Degradation (Average RMSE of survivors)
-        # If all trials died, cap the plot at 1.0 for visualization
+        # Calculate Precision Degradation (Average RMSE of survivors)
         snn_avg_rmse = np.mean(snn_valid_rmse_scores) if len(snn_valid_rmse_scores) > 0 else 1.0
         ann_avg_rmse = np.mean(ann_valid_rmse_scores) if len(ann_valid_rmse_scores) > 0 else 1.0
         
@@ -136,7 +133,7 @@ if __name__ == "__main__":
         print(f"  -> ANN: {ann_fail_pct}% Dead | Surviving Precision (RMSE): {ann_avg_rmse:.4f}")
 
     
-    # 3. PLOTTING SIDE-BY-SIDE METRICS
+    # PLOTTING SIDE-BY-SIDE METRICS
     
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
     

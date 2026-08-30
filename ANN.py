@@ -9,9 +9,8 @@ import torch.optim as optim
 from pathlib import Path
 import matplotlib.pyplot as plt
 
-# ==========================================
-# 1. DATASET (Event-to-Frame E2F con Overlapping)
-# ==========================================
+
+# DATASET 
 class SEENIC_ANN_Dataset(Dataset):
     def __init__(self, events_csv, poses_csv, window_us=50000, stride_us=25000, H=480, W=640):
         self.window_us = window_us
@@ -45,18 +44,15 @@ class SEENIC_ANN_Dataset(Dataset):
         
         mask = (self.events['t'] >= t_start) & (self.events['t'] < t_end)
         window_events = self.events[mask]
-        
-        # 2D Frame: 2 channels (positive/negative), Height, Width
+
         frame = np.zeros((2, self.H, self.W), dtype=np.float32)
         
         if not window_events.empty:
             x = window_events['x'].values.astype(int)
             y = window_events['y'].values.astype(int)
             p = window_events['p'].values.astype(int)
-            
-            # Collapse all events directly into the 2D frame
+
             np.add.at(frame, (p, y, x), 1)
-            # frame = np.clip(frame, 0, 1)
 
         t_center = t_start + (self.window_us / 2.0)
         target_pose = self._interpolate_pose(t_center)
@@ -64,9 +60,9 @@ class SEENIC_ANN_Dataset(Dataset):
         return torch.tensor(frame), torch.tensor(target_pose)
 
 
-# ==========================================
-# 2. CUSTOM LOSS (Translation & Rotation ONLY)
-# ==========================================
+
+# CUSTOM LOSS 
+
 class PoseWeightedMSELossANN(nn.Module):
     def __init__(self, translation_weight=10.0, rotation_weight=1.0):
         super().__init__()
@@ -86,10 +82,7 @@ class PoseWeightedMSELossANN(nn.Module):
         total_weighted_loss = (self.rot_w * loss_rot) + (self.trans_w * loss_trans)
         return total_weighted_loss
     
-    
-# ==========================================
-# 3. RETE ANN (Exact structural clone of the SNN)
-# ==========================================
+
 class SpacecraftANN(nn.Module):
     def __init__(self):
         super().__init__()
@@ -122,10 +115,7 @@ class SpacecraftANN(nn.Module):
         
         return x
 
-
-# ==========================================
-# 4. TRAINING LOOP 
-# ==========================================
+# TRAINING LOOP 
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt # Ensure this is imported
@@ -208,16 +198,15 @@ if __name__ == "__main__":
             print(f"Training stopped at Epoch {epoch+1}. The best weights are safely saved.")
             break
 
-    # ==========================================
-    # 5. PLOT TRAINING LOSS
-    # ==========================================
+    
+    # PLOT TRAINING LOSS
+    
     print("\n--- PLOTTING TRAINING LOSS ---")
     plt.figure(figsize=(10, 6))
     
     # Plot the recorded losses
     plt.plot(range(1, len(mean_loss) + 1), mean_loss, marker='o', linestyle='-', color='r', label='Training Mean Loss (ANN)')
-    
-    # Formatting the plot
+
     plt.title('ANN Training Loss Over Epochs', fontsize=14, fontweight='bold')
     plt.xlabel('Epoch', fontsize=12)
     plt.ylabel('Pose Weighted MSE Loss', fontsize=12)

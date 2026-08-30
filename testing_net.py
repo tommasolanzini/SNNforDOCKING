@@ -54,8 +54,7 @@ def evaluate_model(model_type, model_path, test_folder_path):
     true_poses = np.array(true_poses)
     pred_poses = np.array(pred_poses)
 
-    # 2. Calculate Statistical Metrics
-    # Array Indices -> 0:Rx, 1:Ry, 2:Rz, 3:X, 4:Y, 5:Z
+    # Calculate Statistical Metrics
     errors = pred_poses - true_poses
     
     # Root Mean Square Error (RMSE) - heavily penalizes large deviations

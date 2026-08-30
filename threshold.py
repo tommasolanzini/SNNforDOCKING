@@ -21,7 +21,6 @@ if __name__ == "__main__":
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
     # Define configurations for the 3 distinct trained models
-    # UPDATE THESE PATHS to match your newly trained weight files
     models_info = [
         {"path": "NNs_weights/SNN_weights_run_1.pth", "thr": 0.3, "title": "a) Threshold $U_{th} = 0.3$\n(Optimal Propagation)", "color": "green"},
         {"path": "NNs_weights/SNN_weights_thr_06.pth", "thr": 0.6, "title": "b) Threshold $U_{th} = 0.6$\n(Partial Attenuation)", "color": "orange"},
@@ -31,14 +30,11 @@ if __name__ == "__main__":
     all_predictions = []
     true_trajectory = []
 
-    # Inference loop for each model
     for idx, info in enumerate(models_info):
         print(f"Loading Model trained with Threshold = {info['thr']}...")
-        
-        # Initialize model with its specific threshold
+
         model = SpacecraftSNN(beta=0.95, threshold=info['thr']).to(device)
         
-        # Load the specific weights trained for this threshold
         model.load_state_dict(torch.load(info['path'], map_location=device, weights_only=True))
         model.eval()
         
