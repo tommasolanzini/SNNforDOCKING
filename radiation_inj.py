@@ -135,9 +135,9 @@ if __name__ == "__main__":
         print(f"  -> SNN: {snn_fail_pct}% Dead | Surviving Precision (RMSE): {snn_avg_rmse:.4f}")
         print(f"  -> ANN: {ann_fail_pct}% Dead | Surviving Precision (RMSE): {ann_avg_rmse:.4f}")
 
-    # ==========================================
+    
     # 3. PLOTTING SIDE-BY-SIDE METRICS
-    # ==========================================
+    
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
     
     # Left Plot: Catastrophic Failure Rate
