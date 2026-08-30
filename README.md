@@ -16,10 +16,13 @@ The project uses the following libraries:
 * `pandas`
 * `matplotlib`
 
-1. **Clone the repository:**
+ **Clone the repository:**
    ```bash
    git clone [https://github.com/tommasolanzini/SNNforDOCKING.git](https://github.com/tommasolanzini/SNNforDOCKING.git)
    cd SNNforDOCKING
+   
+ **Download SEENIC datasets here:**
+   https://zenodo.org/records/7370076
 
 ##  Usage & Reproducibility
 
