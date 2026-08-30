@@ -1,3 +1,5 @@
+import os
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 import torch
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 import pandas as pd
@@ -9,7 +11,7 @@ from pathlib import Path
 import snntorch.surrogate as surrogate
 import matplotlib.pyplot as plt
 
-# 1. DATASET (Spatiotemporal Voxel Grid con Overlapping)
+# DATASET (Spatiotemporal Voxel Grid with Overlap)
 class SEENIC_SNN_Dataset(Dataset):
     def __init__(self, events_csv, poses_csv, window_us=50000, stride_us=25000, time_steps=5, H=480, W=640):
         self.window_us = window_us
@@ -40,14 +42,12 @@ class SEENIC_SNN_Dataset(Dataset):
         return (p0 + ratio * (p1 - p0)).astype(np.float32)
 
     def __getitem__(self, idx):
-        # Il tempo di inizio della finestra ora calcolato con lo stride
         t_start = self.start_time + (idx * self.stride_us)
         t_end = t_start + self.window_us
         
         mask = (self.events['t'] >= t_start) & (self.events['t'] < t_end)
         window_events = self.events[mask]
         
-        # 3D Voxel: T steps, 2 channels, Height, Width
         voxel = np.zeros((self.time_steps, 2, self.H, self.W), dtype=np.float32)
         
         if not window_events.empty:
@@ -66,8 +66,7 @@ class SEENIC_SNN_Dataset(Dataset):
         return torch.tensor(voxel), torch.tensor(target_pose)
 
 
-
-# 2. CUSTOM LOSS (Penalità 10x sugli errori di Rotazione)
+# CUSTOM LOSS
 class PoseWeightedMSELoss(nn.Module):
     def __init__(self, translation_weight=10.0, rotation_weight=1.0, smoothness_weight=0.0):
         super().__init__()
@@ -86,12 +85,8 @@ class PoseWeightedMSELoss(nn.Module):
         loss_rot = self.mse(pred_rot, target_rot)
         loss_trans = self.mse(pred_trans, target_trans)
 
-        # Minimize jumps between micro-bins
-        # stacked_outputs shape is (time_steps, batch_size, 6)
         if self.smooth_w > 0:
-            # Calculate the difference between consecutive time steps
             temporal_diff = stacked_outputs[1:] - stacked_outputs[:-1]
-            # Square the differences so large jumps are penalized exponentially
             loss_smooth = torch.mean(temporal_diff ** 2)
         else:
             loss_smooth = 0.0
@@ -100,12 +95,9 @@ class PoseWeightedMSELoss(nn.Module):
         total_weighted_loss = (self.rot_w * loss_rot) + (self.trans_w * loss_trans) + (self.smooth_w * loss_smooth)
         return total_weighted_loss
     
-    
-
-# 3. RETE SNN (Pulita e senza memoria catatonica)
 
 class SpacecraftSNN(nn.Module):
-    def __init__(self, beta=0.95, threshold=1):
+    def __init__(self, beta=0.95, threshold=0.6):
         super().__init__()
 
         spike_grad = surrogate.atan(alpha=2.0)
@@ -121,7 +113,7 @@ class SpacecraftSNN(nn.Module):
         self.flatten = nn.Flatten()
         
         self.fc1 = nn.Linear(32 * 5 * 5, 128)
-        self.dropout = nn.Dropout(0.2) # Spegne il 20% dei neuroni in training
+        self.dropout = nn.Dropout(0.2) 
         self.lif3 = snn.Leaky(beta=beta, threshold=threshold, spike_grad=spike_grad)
         
         self.fc2 = nn.Linear(128, 6) # x, y, z, Rx, Ry, Rz
@@ -129,8 +121,7 @@ class SpacecraftSNN(nn.Module):
 
     def forward(self, x):
         x = x.transpose(0, 1) 
-        
-        # Inizializza i voltaggi a 0 a ogni batch
+
         mem1 = self.lif1.init_leaky()
         mem2 = self.lif2.init_leaky()
         mem3 = self.lif3.init_leaky()
@@ -150,20 +141,15 @@ class SpacecraftSNN(nn.Module):
             
             cur3 = self.dropout(self.fc1(flat))
             spk3, mem3 = self.lif3(cur3, mem3)
-            
+
             cur_out = self.fc2(spk3)
             _, mem_out = self.lif_out(cur_out, mem_out)
-            
             out_record.append(mem_out)
 
         stacked_out = torch.stack(out_record)
-            
-        # Ritorna SOLO la predizione
         return torch.stack(out_record).mean(dim=0), stacked_out
 
-
-
-# 4. TRAINING LOOP 
+# TRAINING LOOP 
 
 if __name__ == "__main__":
     root_dir = Path("SNN_docking")
@@ -191,10 +177,9 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    # Beta a 0.95 (memoria forte)
-    model = SpacecraftSNN(beta=0.95, threshold=1).to(device)
+    model = SpacecraftSNN(beta=0.95, threshold=0.6).to(device)
 
-    ann_weights = torch.load('ANN_weights_1.pth', map_location=device, weights_only=True)
+    ann_weights = torch.load('NNs_weights/ANN_weights_1.pth', map_location=device, weights_only=True)
     
     model.load_state_dict(ann_weights, strict=False)
     
@@ -240,7 +225,7 @@ if __name__ == "__main__":
         if current_epoch_loss < best_loss:
             best_loss = current_epoch_loss
             epochs_without_improvement = 0
-            torch.save(model.state_dict(), 'SNN_weights_thr_1.pth') 
+            torch.save(model.state_dict(), 'NNs_weights/SNN_weights_thr_06.pth') 
         else:
             epochs_without_improvement += 1
             
@@ -249,24 +234,16 @@ if __name__ == "__main__":
             print(f"Training stopped at Epoch {epoch+1}. The best weights are safely saved.")
             break
 
-    # 5. PLOT TRAINING LOSS
+    # PLOT TRAINING LOSS
 
     print("\n--- PLOTTING TRAINING LOSS ---")
     plt.figure(figsize=(10, 6))
-    
-    # Plot the recorded losses
     plt.plot(range(1, len(mean_loss) + 1), mean_loss, marker='o', linestyle='-', color='b', label='Training Mean Loss')
-    
-    # Formatting the plot
     plt.title('SNN Training Loss Over Epochs', fontsize=14, fontweight='bold')
     plt.xlabel('Epoch', fontsize=12)
     plt.ylabel('Pose Weighted MSE Loss', fontsize=12)
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.legend(fontsize=12)
     plt.tight_layout()
-
-    # Save the plot for the LaTeX report
-    plt.savefig('snn_training_loss_curve.png', dpi=300)
-    print("Loss plot saved as 'snn_training_loss_curve.png'")
-    
+    plt.savefig('plots/snn_training_loss_curve.pdf', dpi=300)
     plt.show()

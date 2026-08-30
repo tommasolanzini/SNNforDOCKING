@@ -1,3 +1,5 @@
+import os
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 import torch
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 import pandas as pd

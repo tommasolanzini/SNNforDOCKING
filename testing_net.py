@@ -1,5 +1,4 @@
 import os
-# CRITICAL: This must be at the very top to prevent the libiomp5md.dll crash
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 import torch
@@ -7,9 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 from torch.utils.data import DataLoader
-
-# IMPORTANT: Import your datasets and models from your training files.
-# Make sure your ANN script is saved as 'ANN.py'
 from SNN import SEENIC_SNN_Dataset, SpacecraftSNN
 from ANN import SEENIC_ANN_Dataset, SpacecraftANN
 
@@ -20,7 +16,7 @@ def evaluate_model(model_type, model_path, test_folder_path):
     print(f"{'='*50}")
     print(f"Using device: {device}")
 
-    # 1. Initialize Model and Dataset based on type
+    # Initialize Model and Dataset based on type
     events_file = Path(test_folder_path) / "events.csv"
     poses_file = Path(test_folder_path) / "cam-poses.csv"
 
@@ -36,9 +32,7 @@ def evaluate_model(model_type, model_path, test_folder_path):
     # Load weights and lock the network
     model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
     model.eval()
-
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
-
     true_poses = []
     pred_poses = []
 
@@ -84,7 +78,6 @@ def evaluate_model(model_type, model_path, test_folder_path):
     # 3. Plotting the Results
     time_steps = range(len(true_poses))
     plt.figure(figsize=(10, 8))
-    # plt.suptitle(f"{model_type.upper()} without stride", fontsize=14, fontweight='bold')
     
     # Plot X
     plt.subplot(3, 1, 1)
@@ -115,18 +108,15 @@ def evaluate_model(model_type, model_path, test_folder_path):
     plt.show()
 
 if __name__ == "__main__":
-    # Pick ONE specific folder that was NOT included in your training loop
     TEST_FOLDER = "hubble-approach-fast-lightboxdiffuser" 
-    
-    # Test the SNN
-    SNN_WEIGHTS = "SNN_weights_thr_1.pth"
+    SNN_WEIGHTS = "NNs_weights/SNN_weights_thr_1.pth"
     if Path(SNN_WEIGHTS).exists():
         evaluate_model("SNN", SNN_WEIGHTS, TEST_FOLDER)
     else:
         print(f"\n[!] SNN weights file not found: {SNN_WEIGHTS}")
         
     # Test the ANN
-    ANN_WEIGHTS = "ANN_weights_.pth"
+    ANN_WEIGHTS = "NNs_weights/ANN_weights_.pth"
     if Path(ANN_WEIGHTS).exists():
         evaluate_model("ANN", ANN_WEIGHTS, TEST_FOLDER)
     else:
