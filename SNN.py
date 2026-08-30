@@ -149,10 +149,70 @@ class SpacecraftSNN(nn.Module):
         stacked_out = torch.stack(out_record)
         return torch.stack(out_record).mean(dim=0), stacked_out
 
+class SpacecraftSNN_3Conv(nn.Module):
+    def __init__(self, beta=0.95, threshold=0.3):
+        super().__init__()
+
+        spike_grad = surrogate.atan(alpha=2.0)
+        self.conv1 = nn.Conv2d(in_channels=2, out_channels=16, kernel_size=5, stride=2)
+        self.lif1 = snn.Leaky(beta=beta, threshold=threshold, spike_grad=spike_grad)
+        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=5, stride=2)
+        self.lif2 = snn.Leaky(beta=beta, threshold=threshold, spike_grad=spike_grad)
+        self.conv3 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=5, stride=2)
+        self.lif3_conv = snn.Leaky(beta=beta, threshold=threshold, spike_grad=spike_grad)
+        
+        self.pool = nn.AdaptiveAvgPool2d((5, 5))
+        self.flatten = nn.Flatten()
+        self.fc1 = nn.Linear(64 * 5 * 5, 128)
+        self.dropout = nn.Dropout(0.2) 
+        self.lif4_fc = snn.Leaky(beta=beta, threshold=threshold, spike_grad=spike_grad)
+        self.fc2 = nn.Linear(128, 6) # x, y, z, Rx, Ry, Rz
+        self.lif_out = snn.Leaky(beta=beta, reset_mechanism="none", spike_grad=spike_grad)
+
+    def forward(self, x):
+        x = x.transpose(0, 1) 
+
+        mem1 = self.lif1.init_leaky()
+        mem2 = self.lif2.init_leaky()
+        mem3_conv = self.lif3_conv.init_leaky() 
+        mem4_fc = self.lif4_fc.init_leaky()
+        mem_out = self.lif_out.init_leaky()
+        
+        out_record = []
+        
+        for step_data in x:
+            # Passaggio Conv 1
+            cur1 = self.conv1(step_data)
+            spk1, mem1 = self.lif1(cur1, mem1)
+            
+            # Passaggio Conv 2
+            cur2 = self.conv2(spk1)
+            spk2, mem2 = self.lif2(cur2, mem2)
+
+            # --- PASSAGGIO CONV 3 ---
+            cur3 = self.conv3(spk2)
+            spk3, mem3_conv = self.lif3_conv(cur3, mem3_conv)
+            
+            # Pooling applicato all'uscita del 3° layer convoluzionale
+            pooled = self.pool(spk3)
+            flat = self.flatten(pooled)
+            
+            # Passaggio FC 1
+            cur4 = self.dropout(self.fc1(flat))
+            spk4, mem4_fc = self.lif4_fc(cur4, mem4_fc)
+
+            # Passaggio Output
+            cur_out = self.fc2(spk4)
+            _, mem_out = self.lif_out(cur_out, mem_out)
+            
+            out_record.append(mem_out)
+
+        stacked_out = torch.stack(out_record)
+        return torch.stack(out_record).mean(dim=0), stacked_out
 # TRAINING LOOP 
 
 if __name__ == "__main__":
-    root_dir = Path("SNN_docking")
+    root_dir = Path("training")
     dataset_list = []
 
     for folder_path in root_dir.iterdir():
@@ -177,7 +237,8 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    model = SpacecraftSNN(beta=0.95, threshold=0.6).to(device)
+    # model = SpacecraftSNN(beta=0.95, threshold=0.3).to(device)
+    model = SpacecraftSNN_3Conv(beta=0.95, threshold=0.3).to(device)
 
     ann_weights = torch.load('NNs_weights/ANN_weights_1.pth', map_location=device, weights_only=True)
     
@@ -225,7 +286,7 @@ if __name__ == "__main__":
         if current_epoch_loss < best_loss:
             best_loss = current_epoch_loss
             epochs_without_improvement = 0
-            torch.save(model.state_dict(), 'NNs_weights/SNN_weights_thr_06.pth') 
+            torch.save(model.state_dict(), 'NNs_weights/SNN_weights_run_11.pth') 
         else:
             epochs_without_improvement += 1
             
